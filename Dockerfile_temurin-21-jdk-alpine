@@ -1,0 +1,26 @@
+FROM maven:3.9.8-eclipse-temurin-21-alpine AS builder
+WORKDIR /app
+COPY ./pom.xml .
+RUN mvn -e -B dependency:go-offline
+COPY ./src ./src
+RUN mvn -Dmaven.test.skip=true clean install -B -Dmaven.source.skip
+
+FROM eclipse-temurin:21-jdk-alpine
+# Add app user
+ARG APPLICATION_USER=appuser
+ARG TZ="America/Lima"
+ENV TZ=$TZ
+RUN adduser --no-create-home -u 1000 -D $APPLICATION_USER
+
+# Configure working directory
+RUN mkdir /app && \
+    chown -R $APPLICATION_USER /app
+
+USER 1000
+
+WORKDIR /opt/app
+COPY --chown=1000:1000 --from=builder /app/target/*.jar /opt/app/app.jar
+COPY --chown=1000:1000 --from=builder /app/src /opt/app/classes
+WORKDIR /opt/app
+
+ENTRYPOINT ["java","-jar","app.jar"]
